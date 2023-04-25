@@ -7,11 +7,11 @@ import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
 import com.zerodhatech.kiteconnect.utils.Constants;
 import com.zerodhatech.models.Order;
 import com.zerodhatech.models.OrderParams;
-import com.zerodhatech.models.Trade;
 
 
 import java.io.IOException;
 import java.time.LocalTime;
+import java.util.List;
 import java.util.Scanner;
 
 public class TradeUtils {
@@ -67,9 +67,44 @@ public class TradeUtils {
         return order;
     }
 
-    public Order getOrderHistory(String orderId) throws IOException, KiteException {
+    public Order getOrderInCurrentState(String orderId) throws IOException, KiteException {
+
+        List<Order> orderHistory = kiteSdk.getOrderHistory(orderId);
+        for (Order o : orderHistory) {
+            if(o.status.equals("COMPLETE") && o.orderId.equals(orderId)){
+                return o;
+            }
+        }
         /*ReVisit*/
-        return kiteSdk.getOrderHistory(orderId).get(0);
+    /*
+        List<Trade> tradeHistory = kiteSdk.getOrderTrades(orderId);
+        List<Order> completeOrderHistory = kiteSdk.getOrders();
+        List<Trade> completeTradeHistory = kiteSdk.getOrderTrades(orderId);
+        ObjectMapper mapper = new ObjectMapper();
+        int index = 0;
+        System.out.println("--------------------Order History--------------------------");
+        String orderHistoryJson = mapper.writeValueAsString(orderHistory);
+        System.out.println(orderHistoryJson);
+        System.out.println("----------------------------------------------------------");
+
+        System.out.println("--------------------Trade History--------------------------");
+        String tradeHistoryJson = mapper.writeValueAsString(tradeHistory);
+        System.out.println(tradeHistoryJson);
+        System.out.println("----------------------------------------------------------");
+
+        System.out.println("--------------------Complete Order History--------------------------");
+        String completeOrderHistoryJson = mapper.writeValueAsString(completeOrderHistory);
+        System.out.println(completeOrderHistoryJson);
+        System.out.println("----------------------------------------------------------");
+
+        System.out.println("--------------------Complete Trade History--------------------------");
+        String completeTradeHistoryJson = mapper.writeValueAsString(completeTradeHistory);
+        System.out.println(completeTradeHistoryJson);
+        System.out.println("----------------------------------------------------------");
+    */
+
+        //If Order not successful return order in its current state.
+        return orderHistory.get(orderHistory.size()-1);
     }
 
     public void executeStrategy(CustomTrade trade)
@@ -82,13 +117,12 @@ public class TradeUtils {
                 newOrder = sellAtMarketPriceMIS(trade.stockName,trade.quantity);
             }
 
-            while(! getOrderHistory(newOrder.orderId).status.equals("COMPLETE")) {
+            while(! getOrderInCurrentState(newOrder.orderId).status.equals("COMPLETE")) {
                 Thread.sleep(2000);
                 System.out.println("Waiting for order completion....");
             }
 
-            Order completedOrder = getOrderHistory(newOrder.orderId);
-            //trade.tradeCount++;
+            Order completedOrder = getOrderInCurrentState(newOrder.orderId);
             trade.isTradeTaken = true;
             /*ReVisit*/
             trade.threshold = Double.parseDouble(completedOrder.triggerPrice);
@@ -105,7 +139,7 @@ public class TradeUtils {
                     TextUtils.printInGreen("Target Hit !! ");
                 } else if (ltp <= trade.getSLPrice()){
                     Order squareOffOrder = sellAtMarketPriceMIS(trade.stockName,trade.quantity);
-                    while(! getOrderHistory(squareOffOrder.orderId).status.equals("COMPLETE")) {
+                    while(! getOrderInCurrentState(squareOffOrder.orderId).status.equals("COMPLETE")) {
                         Thread.sleep(1000);
                         System.out.println("Waiting for order completion....");
                     }
@@ -113,7 +147,7 @@ public class TradeUtils {
                     trade.lastExecutedOrder = squareOffOrder;
                     trade.tradeCount++;
                     trade.currentDirection = Direction.BEARISH;
-                    TextUtils.printInRed("SL Hit @ "+ getOrderHistory(squareOffOrder.orderId).triggerPrice);
+                    TextUtils.printInRed("SL Hit @ "+ getOrderInCurrentState(squareOffOrder.orderId).triggerPrice);
                 } else {
                     System.out.println("In the trade, LTP :: " + ltp);
                 }
@@ -128,7 +162,7 @@ public class TradeUtils {
                     TextUtils.printInGreen("Target Hit !! ");
                 } else if (ltp >= trade.getSLPrice()){
                     Order squareOffOrder = buyAtMarketPriceMIS(trade.stockName,trade.quantity);
-                    while(! getOrderHistory(squareOffOrder.orderId).status.equals("COMPLETE")) {
+                    while(! getOrderInCurrentState(squareOffOrder.orderId).status.equals("COMPLETE")) {
                         Thread.sleep(1000);
                         System.out.println("Waiting for order completion....");
                     }
@@ -136,7 +170,7 @@ public class TradeUtils {
                     trade.lastExecutedOrder = squareOffOrder;
                     trade.tradeCount++;
                     trade.currentDirection = Direction.BULLISH;
-                    TextUtils.printInRed("SL Hit @ "+ getOrderHistory(squareOffOrder.orderId).triggerPrice);
+                    TextUtils.printInRed("SL Hit @ "+ getOrderInCurrentState(squareOffOrder.orderId).triggerPrice);
                 } else {
                     System.out.println("In the trade, LTP :: " + ltp);
                 }
@@ -155,6 +189,5 @@ public class TradeUtils {
             return false;
         }
     }
-
 
 }
