@@ -3,12 +3,11 @@ import com.bidirectionalsetup.Config.Config;
 import com.bidirectionalsetup.Models.CustomTrade;
 import com.bidirectionalsetup.Models.Direction;
 import com.bidirectionalsetup.Utils.AccessTokenUtils;
-import com.bidirectionalsetup.Utils.TextUtils;
 import com.bidirectionalsetup.Utils.TradeUtils;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zerodhatech.kiteconnect.KiteConnect;
 import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
 import com.zerodhatech.models.Margin;
-import com.zerodhatech.models.Order;
 
 import java.io.IOException;
 import java.util.Scanner;
@@ -17,8 +16,9 @@ public class Main {
 
     public static void LiveTest(KiteConnect kiteSdk, TradeUtils tradeUtils)
             throws IOException, KiteException, InterruptedException {
+            ObjectMapper mapper = new ObjectMapper();
             // 1. Place a Buy Order
-            Order buyOrder = tradeUtils.buyAtMarketPriceMIS("SBIN", 1);
+            /*Order buyOrder = tradeUtils.buyAtMarketPriceMIS("SBIN", 1);
             // 2. Check the Order has been placed successfully.
             Order order = tradeUtils.getOrderInCurrentState(buyOrder.orderId);
             // 3. Sleep for 5 Mins.
@@ -26,11 +26,16 @@ public class Main {
             // 4. Place the sell order.
             Order sellOrder = tradeUtils.sellAtMarketPriceMIS("SBIN", 1);
             // 5. Test Successful.
-            TextUtils.printInGreen("Test Successful");
+            TextUtils.printInGreen("Test Successful");*/
+            CustomTrade trade = new CustomTrade();
+            trade.stockName = "SBIN";
+            tradeUtils.setLTPByStockName(trade);
+            System.out.println(trade.ltp);
     }
 
     public static void main(String[] args) throws IOException, InterruptedException, KiteException {
         Scanner scanner = new Scanner(System.in);
+        ObjectMapper mapper = new ObjectMapper();
         KiteConnect kiteSdk = new KiteConnect(Config.apiKey);
         kiteSdk.setUserId(Config.userId);
         AccessTokenUtils accessTokenUtils = new AccessTokenUtils(kiteSdk);
@@ -43,7 +48,7 @@ public class Main {
         if (!testFlag){
             String stockName = tradeUtils.getStock();
             System.out.println("Trading in Stock : " + stockName);
-            System.out.println("Brick Size : " + (tradeUtils.getLTPByStockName(stockName)/0.0018));
+            //System.out.println("Brick Size : " + (tradeUtils.getLTPByStockName(stockName)/0.0018));
             boolean isTradeOpen = false;
 
             Direction direction;
@@ -72,22 +77,23 @@ public class Main {
 
             Margin capital = kiteSdk.getMargins().get("equity");
             String capitalAvailable = capital.available.cash;
-
-            String[] instruments = {stockName};
-            double ltp = kiteSdk.getLTP(instruments).get(stockName).lastPrice;
-            int quantity = (int) Math.ceil(Integer.parseInt(capitalAvailable) / (2 * ltp));
-
+            Double tradeCapital = Config.tradeCapital;
 
             CustomTrade trade = new CustomTrade();
             trade.isTradeTaken = false;
             trade.currentDirection = direction;
             trade.tradeCount = 1;
             trade.stockName = stockName;
-            trade.quantity = quantity;
             trade.successfulTrade = false;
+            tradeUtils.setLTPByStockName(trade);
+            double ltp = trade.ltp;
+            trade.quantity = (int) Math.ceil(tradeCapital / (2 * ltp));
 
-            while(!trade.successfulTrade && trade.tradeCount < 4 && tradeUtils.isTradeInTime()) {
+            //while(!trade.successfulTrade && trade.tradeCount < 4 && tradeUtils.isTradeInTime()) {
+            while(!trade.successfulTrade && trade.tradeCount < 4) {
+                System.out.println(mapper.writeValueAsString(trade));
                 tradeUtils.executeStrategy(trade);
+                Thread.sleep(1500);
             }
 
             if((!tradeUtils.isTradeInTime() && trade.isTradeTaken) || trade.isTradeTaken){

@@ -2,22 +2,28 @@ package com.bidirectionalsetup.Utils;
 
 import com.bidirectionalsetup.Models.CustomTrade;
 import com.bidirectionalsetup.Models.Direction;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zerodhatech.kiteconnect.KiteConnect;
 import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
 import com.zerodhatech.kiteconnect.utils.Constants;
+import com.zerodhatech.models.LTPQuote;
 import com.zerodhatech.models.Order;
 import com.zerodhatech.models.OrderParams;
 
 
 import java.io.IOException;
 import java.time.LocalTime;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Scanner;
 
 public class TradeUtils {
     private final KiteConnect kiteSdk;
+    ObjectMapper mapper;
 
     public TradeUtils(KiteConnect kiteSdk) {
+        mapper = new ObjectMapper();
         this.kiteSdk = kiteSdk;
     }
 
@@ -37,9 +43,21 @@ public class TradeUtils {
         return kiteSdk.placeOrder(order, Constants.VARIETY_REGULAR);
     }
 
-    public Double getLTPByStockName(String stockName) throws IOException, KiteException {
-        String[] instruments = {stockName};
-        return kiteSdk.getLTP(instruments).get(stockName).lastPrice;
+    public void setLTPByStockName(CustomTrade trade)
+            throws IOException, KiteException, InterruptedException {
+        try{
+            String stockName = trade.stockName;
+            String[] instruments = new String[1];
+            stockName = "NSE:"+stockName;
+            instruments[0] = stockName;
+            Map<String, LTPQuote> ltpMap = kiteSdk.getLTP(instruments);
+            System.out.println("------------------LTPMap----------------------------");
+            System.out.println(mapper.writeValueAsString(ltpMap));
+            trade.ltp = ltpMap.get(stockName).lastPrice;
+        } catch (Exception e){
+            TextUtils.printInRed(Arrays.toString(e.getStackTrace()));
+            Thread.sleep(3000);
+        }
     }
 
     public static OrderParams createOrder(int quantity, String stockName, boolean buyFlag) {
@@ -123,12 +141,14 @@ public class TradeUtils {
             }
 
             Order completedOrder = getOrderInCurrentState(newOrder.orderId);
+
             trade.isTradeTaken = true;
             /*ReVisit*/
-            trade.threshold = Double.parseDouble(completedOrder.triggerPrice);
+            trade.threshold = Double.parseDouble(completedOrder.averagePrice);
             trade.lastExecutedOrder = completedOrder;
         } else {
-            Double ltp = getLTPByStockName(trade.stockName);
+            setLTPByStockName(trade);
+            Double ltp = trade.ltp;
             if(trade.currentDirection.equals(Direction.BULLISH)) {
 
                 if(ltp >= trade.getTargetPrice()){
@@ -147,7 +167,7 @@ public class TradeUtils {
                     trade.lastExecutedOrder = squareOffOrder;
                     trade.tradeCount++;
                     trade.currentDirection = Direction.BEARISH;
-                    TextUtils.printInRed("SL Hit @ "+ getOrderInCurrentState(squareOffOrder.orderId).triggerPrice);
+                    TextUtils.printInRed("SL Hit @ "+ getOrderInCurrentState(squareOffOrder.orderId).averagePrice);
                 } else {
                     System.out.println("In the trade, LTP :: " + ltp);
                 }
@@ -170,7 +190,7 @@ public class TradeUtils {
                     trade.lastExecutedOrder = squareOffOrder;
                     trade.tradeCount++;
                     trade.currentDirection = Direction.BULLISH;
-                    TextUtils.printInRed("SL Hit @ "+ getOrderInCurrentState(squareOffOrder.orderId).triggerPrice);
+                    TextUtils.printInRed("SL Hit @ "+ getOrderInCurrentState(squareOffOrder.orderId).averagePrice);
                 } else {
                     System.out.println("In the trade, LTP :: " + ltp);
                 }

@@ -6,6 +6,7 @@ public class CustomTrade {
     public Boolean isTradeTaken;
     public Integer tradeCount;
     public String stockName;
+    public Double ltp;
     public Direction currentDirection;
     public double threshold;
     public Integer quantity;
